@@ -23,6 +23,7 @@ export async function POST(req: Request) {
     const token = signToken({ sub: user.id, name: user.name });
     return NextResponse.json({ ok: true, user: { id: user.id, name: user.name }, token });
   } catch (err) {
-    return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 });
+    console.error('login error', err);
+    return NextResponse.json({ ok: false, error: err instanceof Error ? err.message : 'invalid_json' }, { status: 400 });
   }
 }

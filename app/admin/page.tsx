@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { foods, restaurants as seedRestaurants } from '../data';
+import { foods } from '../data';
 
 type RestaurantWithStatus = {
   id: string;
@@ -9,26 +9,26 @@ type RestaurantWithStatus = {
   description: string;
   badge: string;
   eta: string;
-  rating: string;
+  rating: string | number;
   online: boolean;
+  menu?: any[];
 };
 
 export default function AdminPage() {
-  const [restaurants, setRestaurants] = useState<RestaurantWithStatus[]>(
-    seedRestaurants.map((restaurant) => ({ ...restaurant, online: true })),
-  );
+  const [restaurants, setRestaurants] = useState<RestaurantWithStatus[]>([]);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
 
   const [orders, setOrders] = useState<any[]>([]);
   const [authWarning, setAuthWarning] = useState<string | null>(null);
 
-  const selected = useMemo(() => restaurants[0], [restaurants]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selected = useMemo(() => restaurants.find((r:any)=> r.id === selectedId) || restaurants[0] || null, [restaurants, selectedId]);
 
   const stats = {
     total: restaurants.length,
     online: restaurants.filter((r) => r.online).length,
-    menuItems: foods.length,
+    menuItems: restaurants.reduce((sum, r:any) => sum + (r.menu?.length || 0), 0),
     orders: orders.length,
   };
 
@@ -55,27 +55,38 @@ export default function AdminPage() {
     }
   };
 
-  useEffect(() => { fetchOrders(); }, []);
+  const fetchRestaurants = async () => {
+    try {
+      const res = await (await import('../lib/api-client')).apiFetch('/api/admin/restaurants');
+      const j = await res.json();
+      if (j.ok) setRestaurants(j.restaurants.map((r:any)=> ({ ...r, online: r.online }))); 
+      else setRestaurants([]);
+    } catch (err) {
+      console.error(err);
+      setRestaurants([]);
+    }
+  };
 
 
-  const addRestaurant = () => {
+  useEffect(() => { fetchOrders(); fetchRestaurants(); }, []);
+
+
+  const addRestaurant = async () => {
     if (!name.trim()) return;
-
-    setRestaurants((current) => [
-      ...current,
-      {
-        id: `rest-${Date.now()}`,
-        name: name.trim(),
-        description: description.trim() || 'رستوران جدید ثبت شده است.',
-        badge: 'جدید',
-        eta: '۲۰–۳۰ دقیقه',
-        rating: '۴.۹',
-        online: true,
-      },
-    ]);
-
-    setName('');
-    setDescription('');
+    try {
+      const res = await (await import('../lib/api-client')).apiFetch('/api/admin/restaurants', {
+        method: 'POST',
+        body: JSON.stringify({ name: name.trim(), description: description.trim() }),
+      });
+      const j = await res.json();
+      if (j.ok) {
+        setRestaurants((current) => [j.restaurant, ...current]);
+        setName('');
+        setDescription('');
+      } else {
+        alert('ثبت رستوران با خطا مواجه شد');
+      }
+    } catch (err) { console.error(err); alert('درخواست شکست خورد'); }
   };
 
   const toggleOnline = (id: string) => {
@@ -86,7 +97,27 @@ export default function AdminPage() {
     );
   };
 
-  const menu = foods.filter((item) => item.restaurant === selected?.name).slice(0, 4);
+  const menu = selected?.menu ?? [];
+
+  const [menuTitle, setMenuTitle] = useState('');
+  const [menuPrice, setMenuPrice] = useState('');
+  const [menuDescription, setMenuDescription] = useState('');
+
+  const addMenuItem = async () => {
+    if (!selected) return alert('ابتدا یک رستوران انتخاب کنید');
+    if (!menuTitle.trim()) return;
+    try {
+      const res = await (await import('../lib/api-client')).apiFetch('/api/admin/restaurants/menu', {
+        method: 'POST',
+        body: JSON.stringify({ restaurantId: selected.id, title: menuTitle.trim(), description: menuDescription.trim(), price: Number(menuPrice) || 0 }),
+      });
+      const j = await res.json();
+      if (j.ok) {
+        setRestaurants((cur) => cur.map((r:any) => r.id === selected.id ? { ...r, menu: [j.item, ...(r.menu||[])] } : r));
+        setMenuTitle(''); setMenuPrice(''); setMenuDescription('');
+      } else alert('ثبت آیتم منو با خطا مواجه شد');
+    } catch (err) { console.error(err); alert('درخواست شکست خورد'); }
+  };
 
   return (
     <div className="page-shell" dir="rtl">
@@ -124,10 +155,10 @@ export default function AdminPage() {
             <h3>لیست رستوران‌ها</h3>
             <div className="user-list">
               {restaurants.map((restaurant) => (
-                <div key={restaurant.id} className="user-item">
-                  <div>
+                <div key={restaurant.id} className="user-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ cursor: 'pointer' }} onClick={() => setSelectedId(restaurant.id)}>
                     <strong>{restaurant.name}</strong>
-                    <span>{restaurant.eta}</span>
+                    <div style={{ fontSize: 12 }}>{restaurant.eta}</div>
                   </div>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <button type="button" className="secondary-button" onClick={() => toggleOnline(restaurant.id)}>
@@ -187,6 +218,28 @@ export default function AdminPage() {
               <button type="button" className="primary-button" onClick={addRestaurant}>
                 ثبت رستوران
               </button>
+
+              <hr />
+
+              <h4 style={{ marginTop: 12 }}>مدیریت منوی رستوران منتخب</h4>
+              {!selected && <div>برای مدیریت منو، یک رستوران از لیست انتخاب کنید.</div>}
+              {selected && (
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <label>
+                    عنوان آیتم
+                    <input value={menuTitle} onChange={(e) => setMenuTitle(e.target.value)} />
+                  </label>
+                  <label>
+                    توضیح
+                    <input value={menuDescription} onChange={(e) => setMenuDescription(e.target.value)} />
+                  </label>
+                  <label>
+                    قیمت
+                    <input value={menuPrice} onChange={(e) => setMenuPrice(e.target.value)} />
+                  </label>
+                  <button type="button" className="primary-button" onClick={addMenuItem}>افزودن آیتم</button>
+                </div>
+              )}
             </div>
           </aside>
         </section>
@@ -200,15 +253,36 @@ export default function AdminPage() {
           </div>
 
           <div className="food-grid">
-            {menu.map((item) => (
-              <article key={item.id} className="food-card">
+            {menu.map((item:any) => (
+              <article key={item.id} className="food-card" style={{ position: 'relative' }}>
                 <div className="food-image" aria-hidden="true">{item.icon}</div>
                 <div>
                   <h3>{item.title}</h3>
                   <p>{item.description}</p>
                 </div>
                 <div className="food-meta">
-                  <strong>{item.price.toLocaleString('fa-AF')} AFN</strong>
+                  <strong>{(item.price||0).toLocaleString('fa-AF')} AFN</strong>
+                </div>
+                <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', gap: 8 }}>
+                  <button type="button" className="secondary-button" onClick={async ()=>{
+                    const newTitle = prompt('عنوان جدید', item.title);
+                    if (!newTitle) return;
+                    try {
+                      const res = await (await import('../lib/api-client')).apiFetch('/api/admin/restaurants/menu', { method: 'PATCH', body: JSON.stringify({ id: item.id, title: newTitle }) });
+                      const j = await res.json();
+                      if (j.ok) setRestaurants((cur)=>cur.map((r:any)=> r.id===selected?.id ? { ...r, menu: r.menu.map((mi:any)=> mi.id===item.id ? j.item : mi) } : r));
+                      else alert('ویرایش ناموفق');
+                    } catch (err) { console.error(err); alert('درخواست شکست خورد'); }
+                  }}>ویرایش</button>
+                  <button type="button" className="secondary-button" onClick={async ()=>{
+                    if (!confirm('آیا مطمئنید حذف شود؟')) return;
+                    try {
+                      const res = await (await import('../lib/api-client')).apiFetch('/api/admin/restaurants/menu', { method: 'DELETE', body: JSON.stringify({ id: item.id }) });
+                      const j = await res.json();
+                      if (j.ok) setRestaurants((cur)=>cur.map((r:any)=> r.id===selected?.id ? { ...r, menu: r.menu.filter((mi:any)=> mi.id!==item.id) } : r));
+                      else alert('حذف ناموفق');
+                    } catch (err) { console.error(err); alert('درخواست شکست خورد'); }
+                  }}>حذف</button>
                 </div>
               </article>
             ))}

@@ -10,7 +10,8 @@
     "db:up": "docker-compose up -d db",
     "db:migrate": "npx prisma migrate dev --name init",
     "db:generate": "npx prisma generate",
-    "db:seed-admin": "node scripts/create-admin.js"
+    "db:seed-admin": "node scripts/create-admin.js",
+    "test:unit": "node tests/db-crud-test.js"
   },
   "dependencies": {
     "next": "16.3.0",
