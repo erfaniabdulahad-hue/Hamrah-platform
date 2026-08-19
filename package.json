@@ -11,7 +11,9 @@
     "db:migrate": "npx prisma migrate dev --name init",
     "db:generate": "npx prisma generate",
     "db:seed-admin": "node scripts/create-admin.js",
-    "test:unit": "node tests/db-crud-test.js"
+    "test:unit": "node scripts/db-crud-test.js",
+    "ci": "npm run test:unit && npm run build",
+    "db:deploy": "npx prisma migrate deploy"
   },
   "dependencies": {
     "next": "16.3.0",

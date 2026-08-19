@@ -38,7 +38,7 @@ Files added
 -----------
 - Dockerfile — container image for the app
 - .env.example — template for environment variables
-- .github/workflows/ci.yml — CI workflow to run `npm ci` and `npm run build`
+- .github/workflows/ci.yml — CI workflow to run unit tests, prisma generate and `npm run build`; see .github/workflows/ci.yml for details
 
 Post-deploy checks
 ------------------
