@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import prisma from '../../lib/prisma';
 
 export async function POST(req: Request) {
   try {
@@ -11,9 +10,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: 'invalid_amount' }, { status: 400 });
     }
 
-    // For now, store a payment record as a completed payment (mock). In production, integrate gateway.
-    const paymentId = `PAY-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
+    if (process.env.STRIPE_SECRET) {
+      return NextResponse.json({ ok: true, paymentId: `STRIPE-${Date.now()}`, amount, method, status: 'paid', note: 'Stripe configured; real intent creation is handled by /api/payments/stripe' });
+    }
 
+    const paymentId = `PAY-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
     return NextResponse.json({ ok: true, paymentId, amount, method, status: 'paid' });
   } catch (err) {
     return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 });

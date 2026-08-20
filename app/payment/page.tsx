@@ -9,16 +9,21 @@ export default function PaymentPage() {
   const [status, setStatus] = useState<string | null>(null);
 
   const pay = async () => {
-    const response = await (await import('../lib/api-client')).apiFetch('/api/payments', {
-      method: 'POST',
-      body: JSON.stringify({ method, items, amount: subtotal }),
-    });
+    try {
+      const response = await (await import('../lib/api-client')).apiFetch('/api/payments/stripe', {
+        method: 'POST',
+        body: JSON.stringify({ method, items, amount: subtotal, currency: 'AFN' }),
+      });
 
-    const json = await response.json();
-    if (json.ok) {
-      setStatus(`پرداخت موفق بود — شناسه ${json.paymentId}`);
-      clear();
-    } else {
+      const json = await response.json();
+      if (json.ok) {
+        setStatus(`درگاه Stripe آماده شد — شناسه ${json.id || 'intent'}`);
+        clear();
+      } else {
+        setStatus(json.message || 'پرداخت ناموفق بود');
+      }
+    } catch (err) {
+      console.error(err);
       setStatus('پرداخت ناموفق بود');
     }
   };
